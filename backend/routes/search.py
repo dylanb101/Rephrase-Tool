@@ -36,6 +36,9 @@ async def search_analogies(request: SearchRequest):
                 # 4. Generate reframe
                 reframe_data = ai_functions.generate_reframe(request.point, candidate, citation, context)
                 
+                # 4b. Evaluate strength
+                eval_data = ai_functions.evaluate_analogue_strength(request.point, candidate, citation, context)
+                
                 # 5. Build result object
                 result = {
                     "field": candidate["field"],
@@ -43,14 +46,26 @@ async def search_analogies(request: SearchRequest):
                     "why": candidate["why"],
                     "reframe": reframe_data["reframe"],
                     "how_to_use": reframe_data["how_to_use"],
-                    "citation": citation
+                    "citation": citation,
+                    "strength": eval_data["strength_score"],
+                    "justification": eval_data["justification"]
                 }
                 results.append(result)
                 
                 # 6. Build graph nodes/edges
                 node_id = f"field-{i}"
-                nodes.append({"id": node_id, "label": candidate["field"], "type": "analogue"})
-                edges.append({"source": "root", "target": node_id, "label": "structural analogy"})
+                nodes.append({
+                    "id": node_id, 
+                    "label": candidate["field"], 
+                    "type": "analogue",
+                    "strength": eval_data["strength_score"]
+                })
+                edges.append({
+                    "source": "root", 
+                    "target": node_id, 
+                    "label": "structural analogy",
+                    "strength": eval_data["strength_score"]
+                })
         
         return {
             "structure": structure,

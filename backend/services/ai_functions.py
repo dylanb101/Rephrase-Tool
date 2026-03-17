@@ -107,3 +107,26 @@ Return ONLY:
   "how_to_use": "..."
 }}"""
     return _parse_json(_call(prompt, system))
+def evaluate_analogue_strength(point: str, analogue: dict, citation: dict, context: dict) -> dict:
+    system = "You are a research evaluator. Always respond with valid JSON only, no markdown, no explanation."
+    prompt = f"""Researcher's Point: "{point}"
+Analogue Field: {analogue['field']}
+Analogue Concept: {analogue['concept']}
+Analogue Why: {analogue['why']}
+Citation: {citation['title']}
+
+Evaluate the structural strength of this analogy on a scale of 0.00 to 1.00. 
+How rigorously does the structural pattern from {analogue['field']} map to the researcher's point?
+
+BE DISCERNING. Do not give the same score to every analogy. 
+- Use the full range (0.00 - 1.00). 
+- Be precise (e.g., 0.82 instead of 0.8).
+- Only give high scores (>0.85) if the mapping is perfect and mathematically or structurally identical.
+- Reflect the depth of the difference between the main point and the secondary sectors.
+
+Return ONLY:
+{{
+  "strength_score": float,
+  "justification": "one sentence justification for the score"
+}}"""
+    return _parse_json(_call(prompt, system))

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
-import cytoscape from 'cytoscape';
-import { Upload, Search, Download, ExternalLink, RefreshCw } from 'lucide-react';
+import ForceGraph3D from 'react-force-graph-3d';
+import { Upload, Search, Download, ExternalLink, RefreshCw, Box } from 'lucide-react';
 import './App.css';
 
 const API_BASE = "http://localhost:8000";
@@ -28,12 +28,28 @@ function App() {
   const [structure, setStructure] = useState(null);
   const [graphData, setGraphData] = useState(null);
 
-  const cyRef = useRef(null);
-  const cyInstance = useRef(null);
+  const fgRef = useRef();
+  const [dimensions, setDimensions] = useState({ width: 400, height: 600 });
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      const observer = new ResizeObserver((entries) => {
+        for (let entry of entries) {
+          setDimensions({
+            width: entry.contentRect.width,
+            height: entry.contentRect.height
+          });
+        }
+      });
+      observer.observe(containerRef.current);
+      return () => observer.disconnect();
+    }
+  }, [state]);
 
   const onDrop = async (acceptedFiles) => {
     if (acceptedFiles.length === 0) return;
-    
+
     setLoading(true);
     const formData = new FormData();
     formData.append('file', acceptedFiles[0]);
@@ -87,63 +103,7 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    if (state === 'RESULTS' && graphData && cyRef.current) {
-      cyInstance.current = cytoscape({
-        container: cyRef.current,
-        elements: [
-          ...graphData.nodes.map(n => ({ data: n })),
-          ...graphData.edges.map(e => ({ data: e }))
-        ],
-        style: [
-          {
-            selector: 'node',
-            style: {
-              'label': 'data(label)',
-              'width': 60,
-              'height': 60,
-              'background-color': (ele) => ele.data('type') === 'root' ? '#2563eb' : '#94a3b8',
-              'color': '#1e293b',
-              'font-size': '12px',
-              'text-valign': 'center',
-              'text-halign': 'center',
-              'color': 'white',
-              'font-weight': 'bold',
-              'text-wrap': 'wrap',
-              'text-max-width': '50px'
-            }
-          },
-          {
-            selector: 'edge',
-            style: {
-              'width': 2,
-              'line-color': '#cbd5e1',
-              'target-arrow-color': '#cbd5e1',
-              'target-arrow-shape': 'triangle',
-              'curve-style': 'bezier',
-              'label': 'data(label)',
-              'font-size': '10px',
-              'color': '#64748b'
-            }
-          }
-        ],
-        layout: { name: 'cose', animate: true }
-      });
-
-      cyInstance.current.on('tap', 'node', (evt) => {
-        const node = evt.target;
-        if (node.data('type') === 'analogue') {
-          const cardId = `result-${node.data('id')}`;
-          document.getElementById(cardId)?.scrollIntoView({ behavior: 'smooth' });
-          const card = document.getElementById(cardId);
-          if (card) {
-            card.style.ringColor = "#2563eb";
-            card.style.ringWidth = "2px";
-          }
-        }
-      });
-    }
-  }, [state, graphData]);
+  // No longer using cytoscape effect, react-force-graph handles updates via props
 
   return (
     <div className="app-container">
@@ -158,6 +118,7 @@ function App() {
         <div className="upload-screen">
           <h1>Structural Analogy</h1>
           <p>Find cross-disciplinary support for your arguments</p>
+          <p>Upload a document first to provide context</p>
           <div {...getRootProps()} className={`dropzone ${isDragActive ? 'active' : ''}`}>
             <input {...getInputProps()} />
             <Upload size={48} color="var(--primary)" />
@@ -175,13 +136,13 @@ function App() {
             <p><strong>Thesis:</strong> {context.thesis}</p>
           </div>
           <h2 style={{ marginTop: '2rem' }}>What point do you want to make?</h2>
-          <textarea 
+          <textarea
             value={point}
             onChange={(e) => setPoint(e.target.value)}
             placeholder="e.g. Early trauma creates self-reinforcing avoidance loops that produce the rejection they fear"
           />
-          <button 
-            className="btn-primary" 
+          <button
+            className="btn-primary"
             onClick={handleSearch}
             disabled={!point.trim() || loading}
           >
@@ -198,18 +159,32 @@ function App() {
               <RefreshCw size={16} style={{ marginRight: '8px' }} /> Search again
             </button>
           </div>
-          
+
           <div className="results-screen">
             <div className="results-list">
               {results.map((res, i) => (
                 <div key={i} id={`result-field-${i}`} className="result-card" style={{ borderLeftColor: fieldColors[res.field] || fieldColors.defaults }}>
                   <div className="concept">{res.field}: {res.concept}</div>
                   <div className="why">{res.why}</div>
-                  
+
+                  <div className="reframe-header">Reframed Point</div>
                   <div className="reframe-block">
                     {res.reframe}
                   </div>
-                  
+
+                  {res.strength && (
+                    <div className="strength-meter">
+                      <div className="strength-label">
+                        <span>Structural Strength</span>
+                        <span>{(res.strength * 10).toFixed(1)}/10</span>
+                      </div>
+                      <div className="strength-bar-bg">
+                        <div className="strength-bar-fill" style={{ width: `${res.strength * 100}%`, backgroundColor: res.strength > 0.7 ? '#10b981' : (res.strength > 0.4 ? '#f59e0b' : '#ef4444') }}></div>
+                      </div>
+                      <p className="strength-justification">{res.justification}</p>
+                    </div>
+                  )}
+
                   <div className="how-to-use">
                     <strong>How to use:</strong> {res.how_to_use}
                   </div>
@@ -233,9 +208,53 @@ function App() {
                 </div>
               ))}
             </div>
-            
-            <div className="graph-container">
-              <div id="cy" ref={cyRef}></div>
+
+            <div className="graph-container" ref={containerRef}>
+              <ForceGraph3D
+                ref={fgRef}
+                width={dimensions.width}
+                height={dimensions.height}
+                graphData={{
+                  nodes: graphData.nodes,
+                  links: graphData.edges.map(e => ({
+                    source: e.source,
+                    target: e.target,
+                    label: e.label,
+                    strength: e.strength || 0.5
+                  }))
+                }}
+                nodeLabel={node => `${node.label}${node.strength ? ` (Strength: ${(node.strength * 10).toFixed(1)}/10)` : ''}`}
+                nodeColor={node => node.type === 'root' ? '#2563eb' : (fieldColors[node.label] || '#94a3b8')}
+                nodeRelSize={8}
+                linkColor={() => '#94a3b8'}
+                linkWidth={1.5}
+                linkDirectionalParticles={2}
+                linkDirectionalParticleSpeed={d => (d.strength || 0.5) * 0.01}
+                backgroundColor="#f8fafc"
+                cooldownTicks={100}
+                onEngineStop={() => {
+                  // After initial layout, we can fix positions if we want "depth" to be more apparent
+                }}
+                onNodeClick={node => {
+                  if (node.type === 'analogue') {
+                    const cardId = `result-${node.id}`;
+                    document.getElementById(cardId)?.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }}
+                // Custom link distance based on strength with more variance
+                d3Force={(forceName, force) => {
+                  if (forceName === 'link') {
+                    force.distance(link => {
+                      // Wider range for distance: 50 to 350
+                      // Lower strength = much longer distance
+                      const baseDist = (1 - (link.strength || 0.5)) * 300 + 50;
+                      // Add a small jitter so no two lines are EXACTLY the same length
+                      const jitter = (Math.sin(link.index) * 10);
+                      return baseDist + jitter;
+                    });
+                  }
+                }}
+              />
             </div>
           </div>
         </>
