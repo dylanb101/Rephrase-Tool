@@ -15,7 +15,10 @@ curl -LsSf [https://astral.sh/uv/install.sh](https://astral.sh/uv/install.sh) | 
 ```
 
 ### 2. Setup Repository
+```bash
 git clone [https://github.com/your-username/my-cool-project.git](https://github.com/your-username/my-cool-project.git)
 cd my-cool-project
 uv sync
+```
+
 
